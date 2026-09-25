@@ -1,0 +1,30 @@
+# Environment and local configuration
+.env
+.env.*
+!.env.example
+
+# Operating system files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Editor and IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+__pycache__/
+*.py[cod]
+
+# Dependency and build directories
+node_modules/
+vendor/
+dist/
+build/
+coverage/
+data/*.json
+
+# Local platform and project artifacts
+.rocketride/
+ignore/
