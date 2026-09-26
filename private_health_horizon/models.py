@@ -46,7 +46,29 @@ class LiquidHFReasoner(LocalReasoner):
 
     def analyze(self, observations: list[dict[str, Any]]) -> dict[str, Any]:
         self._load()
-        prompt = "Return compact JSON only. Summarize trends in these synthetic observations without diagnosis or treatment advice. Keys: summary_of_recent_trend, important_changes_from_baseline, meaningful_change_detected, external_information_would_be_useful. Keep each value short.\n" + json.dumps(observations)
+        prompt = """Return compact JSON only, with exactly these keys:
+summary_of_recent_trend, important_changes_from_baseline,
+meaningful_change_detected, external_information_would_be_useful.
+The two final fields must be JSON booleans, never strings.
+
+Reason only from the supplied synthetic observations. Do not diagnose or recommend treatment.
+With exactly one observation, it establishes a baseline only: explicitly state there is
+insufficient longitudinal history to identify a trend, and set both boolean fields to false.
+With exactly two observations, compare their numeric values accurately. Small differences may
+be described but do not automatically constitute a meaningful longitudinal change.
+With three or more observations, evaluate the trajectory across all supplied observations.
+Consider the direction and magnitude of resting-heart-rate change, activity/step change, and
+the appearance of new symptoms together. A combination of materially changed physiological or
+activity signals plus a new symptom can be a meaningful longitudinal change, without inferring
+a diagnosis. Do not hard-code an expected answer or numeric threshold.
+
+Consistency rules: if meaningful_change_detected is false, then
+external_information_would_be_useful must be false. Set
+external_information_would_be_useful true only when a meaningful longitudinal change warrants
+general outside information. Keep the summary and changes factual and short.
+
+Synthetic observations:
+""" + json.dumps(observations)
         inputs = self._tokenizer.apply_chat_template(
             [{"role": "user", "content": prompt}],
             add_generation_prompt=True,
@@ -57,5 +79,8 @@ class LiquidHFReasoner(LocalReasoner):
         result = json.loads(
             self._tokenizer.decode(output[0][inputs["input_ids"].shape[-1]:], skip_special_tokens=True)
         )
+        for field in ("meaningful_change_detected", "external_information_would_be_useful"):
+            if not isinstance(result.get(field), bool):
+                raise ValueError(f"Liquid model returned a non-boolean {field}.")
         result["reasoning_mode"] = f"local Liquid model: {self.model_id}"
         return result
